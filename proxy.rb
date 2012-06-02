@@ -77,7 +77,6 @@ module Proxy
   end
   module_function :parse_request
 
-  
 end
   
 class ProxyForwarder
@@ -94,13 +93,12 @@ class ProxyForwarder
     end
   end
 
-
   # Forward on the data
   def proxy_request client
     req = parse_request client
 
     query = req.query.map { |k, v| "#{k}=#{v}" }.join '&'
-    query = '?' + query unless query.strip.empty?
+    query = '?' << query unless query.strip.empty?
     query = URI::encode query
 
     server = TCPSocket.new($remote_server, $remote_port)

@@ -15,6 +15,13 @@ $iv = Base64.decode64 config['iv']
 $remote_server = config['remote_server']
 $remote_port = config['remote_port'] || 80
 
+module Util
+  def generate_key
+    aes = OpenSSL::Cipher::Cipher.new('AES-256-CBC')
+    return aes.random_key, aes.random_iv
+  end
+  module_function :generate_key
+end
 
 module Proxy
   
@@ -167,4 +174,13 @@ elsif ARGV[0] == '--both'
     ProxyReceiver.new.run 8009
   end
   threads.each { |t| t.join }
+elsif ARGV[0] == '--gen'
+  key, iv = Util::generate_key
+  key = Base64.encode64 key
+  iv = Base64.encode64 iv
+  config['key'] = key
+  config['iv'] = iv
+  File.open 'config.yml', 'w' do |file|
+    file.write YAML::dump config
+  end
 end

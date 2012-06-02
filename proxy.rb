@@ -6,9 +6,12 @@ require 'json'
 require 'openssl'
 require 'base64'
 require 'stringio'
+require 'yaml'
 
-$my_key = "\x05\x10\x98F\xFBlM\xDDP\xA1\x9D\xFC\x8B\f\x7F\x17s\xA3\xA0?\xC6\x90\xBD\x9D\xAF\xD3\xEE\xD2\xBF\xD5\xA0,"
-$my_iv = "\xE3\xCAJm\xB5b\xDD\xD4P\x8A\xBECP\x9C.\xF8"
+key_data = YAML::load_file 'key.yml'
+$key = Base64.decode64 key_data['key']
+$iv = Base64.decode64 key_data['iv']
+
 
 module Proxy
   
@@ -22,8 +25,8 @@ module Proxy
     
     aes = OpenSSL::Cipher::Cipher.new('AES-256-CBC')
     aes.encrypt
-    aes.key = $my_key
-    aes.iv = $my_iv
+    aes.key = $key
+    aes.iv = $iv
     c_t = aes.update req.to_json
     c_t << aes.final
 
@@ -40,8 +43,8 @@ module Proxy
      
      aes = OpenSSL::Cipher::Cipher.new('AES-256-CBC')
      aes.decrypt
-     aes.key = $my_key
-     aes.iv = $my_iv
+     aes.key = $key
+     aes.iv = $iv
 
      pt = aes.update unsafe_c_t
      pt << aes.final
@@ -148,22 +151,17 @@ class ProxyReceiver
 end
 
 
-begin
-  if ARGV.empty? || ARGV[0] == '--client'
+if ARGV.empty? || ARGV[0] == '--client'
+  ProxySender.new.run 8008
+elsif ARGV[0] == '--server'
+  ProxyReceiver.new.run 8009
+elsif ARGV[0] == '--both'
+  threads = []
+  threads << Thread.new do
     ProxySender.new.run 8008
-  elsif ARGV[0] == '--server'
-      ProxyReceiver.new.run 8009
-  elsif ARGV[0] == '--both'
-    threads = []
-    threads << Thread.new do
-      ProxySender.new.run 8008
-    end
-    threads << Thread.new do
-      ProxyReceiver.new.run 8009
-    end
-    threads.each { |t| t.join }
   end
-rescue => e
-  puts e.backtrace
+  threads << Thread.new do
+    ProxyReceiver.new.run 8009
+  end
+  threads.each { |t| t.join }
 end
-

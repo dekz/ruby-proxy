@@ -8,9 +8,12 @@ require 'base64'
 require 'stringio'
 require 'yaml'
 
-key_data = YAML::load_file 'key.yml'
-$key = Base64.decode64 key_data['key']
-$iv = Base64.decode64 key_data['iv']
+config = YAML::load_file 'config.yml'
+$key = Base64.decode64 config['key']
+$iv = Base64.decode64 config['iv']
+
+$remote_server = config['remote_server']
+$remote_port = config['remote_port'] || 80
 
 
 module Proxy
@@ -77,10 +80,11 @@ module Proxy
   
 end
   
-class ProxySender
+class ProxyForwarder
   include Proxy
   # Hold a TCP connection
   def run port
+    puts "Starting Proxy to #{$remote_server}:#{$remote_port}. Listening on #{port}"
     @server = TCPServer.new port
     loop do
       Thread.start @server.accept do |s|
@@ -99,7 +103,7 @@ class ProxySender
     query = '?' + query unless query.strip.empty?
     query = URI::encode query
 
-    server = TCPSocket.new('localhost', 8009)
+    server = TCPSocket.new($remote_server, $remote_port)
     write_request_enveloped req, server
   
     # Read response
@@ -118,6 +122,7 @@ end
 class ProxyReceiver
   include Proxy
   def run port
+    puts "Receiver listening on #{port}"
     @server = TCPServer.new port
     loop do
       Thread.start @server.accept do |s|
@@ -152,13 +157,13 @@ end
 
 
 if ARGV.empty? || ARGV[0] == '--client'
-  ProxySender.new.run 8008
+  ProxyForwarder.new.run 8008
 elsif ARGV[0] == '--server'
   ProxyReceiver.new.run 8009
 elsif ARGV[0] == '--both'
   threads = []
   threads << Thread.new do
-    ProxySender.new.run 8008
+    ProxyForwarder.new.run 8008
   end
   threads << Thread.new do
     ProxyReceiver.new.run 8009
